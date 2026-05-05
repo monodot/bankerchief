@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="description" content="A basic vanilla Progressive Web App skeleton." />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <title>Basic Vanilla PWA</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, sans-serif;
+            background: #f5f5f5;
+            color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100svh;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            padding: 2.5rem 2rem;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            display: block;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: #4f46e5;
+        }
+
+        p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        #status {
+            font-size: 0.875rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 999px;
+            display: inline-block;
+            margin-top: 0.5rem;
+        }
+
+        .online  { background: #d1fae5; color: #065f46; }
+        .offline { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <img class="icon" src="icons/icon-192.png" alt="App icon" />
+    <h1>Basic Vanilla PWA</h1>
+    <p>A minimal Progressive Web App built with plain HTML, CSS and JavaScript — no frameworks needed.</p>
+    <p id="status" class="online">● Online</p>
+</div>
+
+<script>
+    // Register the service worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker
+                .register('sw.js')
+                .then(reg => console.log('Service worker registered:', reg.scope))
+                .catch(err => console.error('Service worker registration failed:', err));
+        });
+    }
+
+    // Update online / offline badge
+    const statusEl = document.getElementById('status');
+
+    function updateStatus() {
+        if (navigator.onLine) {
+            statusEl.textContent = '● Online';
+            statusEl.className = 'online';
+        } else {
+            statusEl.textContent = '● Offline';
+            statusEl.className = 'offline';
+        }
+    }
+
+    window.addEventListener('online',  updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+</script>
+</body>
+</html>
