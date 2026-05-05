@@ -1,13 +1,15 @@
 :3000 {
-    # Serve the PWA
-    root * /srv
-    try_files {path} /index.html
-    file_server
-
     # Serve transaction files with directory listing + CORS
-    handle /data/* {
+    handle_path /data/* {
         root * /transactions
         file_server browse
         header Access-Control-Allow-Origin *
+    }
+
+    # Serve the PWA
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
     }
 }
