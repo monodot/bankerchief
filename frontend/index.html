@@ -11,6 +11,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Chart.js (used by home-view component) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --bg:       #0c0c15;
@@ -36,6 +38,7 @@
             margin: 0 auto;
         }
 
+        /* ── Header ── */
         header {
             display: flex;
             align-items: center;
@@ -48,10 +51,32 @@
             z-index: 10;
         }
 
-        .brand {
+        .header-left {
             display: flex;
             align-items: center;
             gap: 0.625rem;
+        }
+
+        #back-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 0.125rem 0.375rem 0.125rem 0;
+            font-size: 1.25rem;
+            line-height: 1;
+            transition: color 0.15s;
+            display: flex;
+            align-items: center;
+        }
+        #back-btn:hover { color: var(--text); }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: inherit;
         }
 
         .brand-gem {
@@ -71,6 +96,12 @@
             text-transform: uppercase;
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
         #status {
             font-family: var(--font-mono);
             font-size: 0.5625rem;
@@ -79,7 +110,6 @@
             border-radius: 999px;
             border: 1px solid;
         }
-
         #status.online  { color: var(--income);  border-color: rgba(74,222,128,0.3);  background: rgba(74,222,128,0.08);  }
         #status.offline { color: var(--expense); border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); }
 
@@ -96,18 +126,17 @@
             flex-shrink: 0;
             transition: color 0.15s, border-color 0.15s;
         }
-
-        #refresh-btn:hover { color: var(--text); border-color: var(--border-2, rgba(255,255,255,0.18)); }
+        #refresh-btn:hover  { color: var(--text); border-color: rgba(255,255,255,0.18); }
         #refresh-btn:active { transform: scale(0.92); }
         #refresh-btn[aria-busy="true"] svg { animation: spin 0.7s linear infinite; }
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        main {
-            padding: 1.5rem 1.25rem;
-        }
+        /* ── Main / view root ── */
+        main { padding: 1.5rem 1.25rem; }
 
-        h2 {
+        /* Heading rendered by app.js for the month view */
+        .view-heading {
             font-family: var(--font-display);
             font-style: italic;
             font-size: 1.5rem;
@@ -116,28 +145,41 @@
             margin-bottom: 1.25rem;
         }
 
-        h2 .date-range {
+        /* Initial loading placeholder */
+        .loading-placeholder {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 3rem 0;
             font-family: var(--font-mono);
-            font-style: normal;
-            font-size: 0.6rem;
-            font-weight: 400;
-            letter-spacing: 0.07em;
-            text-transform: uppercase;
+            font-size: 0.75rem;
             color: var(--muted);
-            display: block;
-            margin-top: 0.2rem;
+            letter-spacing: 0.04em;
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(235,233,245,0.12);
+            border-top-color: rgba(235,233,245,0.5);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
         }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="brand">
-        <div class="brand-gem"></div>
-        <span class="brand-name">Bankerchief</span>
+    <div class="header-left">
+        <button id="back-btn" hidden aria-label="Back to overview">‹</button>
+        <a class="brand" href="#">
+            <div class="brand-gem"></div>
+            <span class="brand-name">Bankerchief</span>
+        </a>
     </div>
-    <div style="display:flex;align-items:center;gap:0.5rem;">
-        <button id="refresh-btn" aria-label="Refresh transactions">
+    <div class="header-right">
+        <button id="refresh-btn" aria-label="Refresh data">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M13.5 8A5.5 5.5 0 1 1 10 3.07"/>
                 <polyline points="10 1 10 4 13 4"/>
@@ -148,14 +190,16 @@
 </header>
 
 <main>
-    <h2>Transactions<span class="date-range" id="txn-range"></span></h2>
-    <transaction-list id="txn-list"></transaction-list>
+    <div id="view-root">
+        <div class="loading-placeholder">
+            <span class="spinner"></span> Loading…
+        </div>
+    </div>
 </main>
 
 <script type="module" src="app.js"></script>
 
 <script>
-    // Online/offline badge (plain script, no module needed)
     const statusEl = document.getElementById('status');
     function updateStatus() {
         statusEl.textContent = navigator.onLine ? '● Online' : '● Offline';
@@ -165,7 +209,6 @@
     window.addEventListener('offline', updateStatus);
     updateStatus();
 
-    // Service worker
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js')

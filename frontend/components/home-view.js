@@ -1,0 +1,281 @@
+/**
+ * <home-view> Web Component
+ *
+ * Displays an income-vs-expense bar chart for the most recent 3 months,
+ * followed by a clickable list of all available months.
+ *
+ * Usage:
+ *   el.byMonth = { "2025-09": [...txns], "2025-10": [...txns], ... }
+ */
+class HomeView extends HTMLElement {
+    #chart   = null;
+    #byMonth = {};
+
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+    }
+
+    set byMonth(val) {
+        this.#byMonth = val ?? {};
+        this.#render();
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    #fmtKey(key, style = 'short') {
+        const [y, m] = key.split('-');
+        return new Date(+y, +m - 1, 1)
+            .toLocaleString('en-GB', { month: style, year: 'numeric' });
+    }
+
+    #summarise(txns) {
+        let income = 0, expense = 0;
+        for (const t of txns) {
+            if (t.amount >= 0) income  += t.amount;
+            else               expense += Math.abs(t.amount);
+        }
+        return { income, expense, net: income - expense, count: txns.length };
+    }
+
+    #fmt(n) {
+        return '£' + Math.round(n).toLocaleString('en-GB');
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
+
+    #render() {
+        // Destroy any existing Chart.js instance before wiping the DOM
+        if (this.#chart) { this.#chart.destroy(); this.#chart = null; }
+
+        const sortedKeys = Object.keys(this.#byMonth).sort();       // oldest → newest
+        const last3      = sortedKeys.slice(-3);
+        const allDesc    = [...sortedKeys].reverse();                // newest first for list
+
+        const summaries  = Object.fromEntries(
+            sortedKeys.map(k => [k, this.#summarise(this.#byMonth[k])])
+        );
+
+        const monthRows = allDesc.map(k => {
+            const s       = summaries[k];
+            const netSign = s.net >= 0 ? '+' : '−';
+            const netCls  = s.net >= 0 ? 'credit' : 'debit';
+            return `
+                <a class="month-row" href="#month/${k}">
+                    <span class="month-name">${this.#fmtKey(k, 'short')}</span>
+                    <span class="month-stats">
+                        <span class="credit">+${this.#fmt(s.income)}</span>
+                        <span class="debit">−${this.#fmt(s.expense)}</span>
+                        <span class="${netCls} net">${netSign}${this.#fmt(Math.abs(s.net))}</span>
+                    </span>
+                    <span class="count">${s.count}</span>
+                    <span class="arrow">›</span>
+                </a>`;
+        }).join('');
+
+        this.shadowRoot.innerHTML = `
+            <style>${STYLES}</style>
+            <div class="root">
+                <h2 class="heading">Overview</h2>
+
+                ${last3.length > 0 ? `
+                    <div class="chart-card">
+                        <div class="chart-wrap">
+                            <canvas id="chart"></canvas>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${allDesc.length > 0 ? `
+                    <p class="section-label">All months</p>
+                    <div class="month-list">${monthRows}</div>
+                ` : `<p class="empty">No transaction data found.</p>`}
+            </div>
+        `;
+
+        if (last3.length > 0) {
+            this.#initChart(last3, summaries);
+        }
+    }
+
+    // ── Chart.js ─────────────────────────────────────────────────────────────
+
+    #initChart(keys, summaries) {
+        const canvas = this.shadowRoot.getElementById('chart');
+        if (!canvas || !window.Chart) return;
+
+        this.#chart = new window.Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: keys.map(k => this.#fmtKey(k, 'short')),
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: keys.map(k => summaries[k].income),
+                        backgroundColor: 'rgba(74, 222, 128, 0.85)',
+                        borderRadius: 5,
+                        borderSkipped: false,
+                    },
+                    {
+                        label: 'Expenses',
+                        data: keys.map(k => summaries[k].expense),
+                        backgroundColor: 'rgba(248, 113, 113, 0.85)',
+                        borderRadius: 5,
+                        borderSkipped: false,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'start',
+                        labels: {
+                            color: 'rgba(235,233,245,0.55)',
+                            usePointStyle: true,
+                            pointStyle: 'rect',
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            font: { family: "'DM Mono','Courier New',monospace", size: 10 },
+                            padding: 16,
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: '#1a1a2e',
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderWidth: 1,
+                        titleColor: 'rgba(235,233,245,0.9)',
+                        bodyColor:  'rgba(235,233,245,0.65)',
+                        padding: 10,
+                        callbacks: {
+                            label: ctx =>
+                                ` ${ctx.dataset.label}: £${Math.round(ctx.parsed.y).toLocaleString('en-GB')}`,
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid:   { display: false },
+                        border: { display: false },
+                        ticks:  {
+                            color: 'rgba(235,233,245,0.45)',
+                            font:  { family: "'DM Mono','Courier New',monospace", size: 10 },
+                        },
+                    },
+                    y: {
+                        grid:   { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+                        border: { display: false },
+                        ticks:  {
+                            color: 'rgba(235,233,245,0.45)',
+                            font:  { family: "'DM Mono','Courier New',monospace", size: 10 },
+                            padding: 8,
+                            callback: v => '£' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v),
+                        },
+                    },
+                },
+            },
+        });
+    }
+}
+
+// ── Shadow DOM styles ─────────────────────────────────────────────────────────
+
+const STYLES = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@1,300&display=swap');
+
+    :host { display: block; }
+
+    .heading {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-style: italic;
+        font-weight: 300;
+        font-size: 1.5rem;
+        color: var(--text);
+        margin-bottom: 1.25rem;
+    }
+
+    /* Chart */
+    .chart-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1rem 1rem 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-wrap {
+        position: relative;
+        height: 220px;
+    }
+
+    /* Month list */
+    .section-label {
+        font-family: 'DM Mono', 'Courier New', monospace;
+        font-size: 0.5625rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding-bottom: 0.625rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .month-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid var(--border);
+        text-decoration: none;
+        color: inherit;
+        transition: opacity 0.1s;
+    }
+    .month-row:last-child { border-bottom: none; }
+    .month-row:hover  { opacity: 0.75; }
+    .month-row:active { opacity: 0.5; }
+
+    .month-name {
+        font-size: 0.9375rem;
+        color: var(--text);
+        min-width: 4.5rem;
+        flex-shrink: 0;
+    }
+
+    .month-stats {
+        display: flex;
+        flex: 1;
+        gap: 0.625rem;
+        font-family: 'DM Mono', 'Courier New', monospace;
+        font-size: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .net   { font-weight: 500; }
+    .credit { color: var(--income); }
+    .debit  { color: var(--expense); }
+
+    .count {
+        font-family: 'DM Mono', 'Courier New', monospace;
+        font-size: 0.625rem;
+        color: var(--muted);
+        flex-shrink: 0;
+    }
+
+    .arrow {
+        color: var(--muted);
+        font-size: 1.25rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .empty {
+        padding: 3rem 0;
+        text-align: center;
+        font-family: 'DM Mono', 'Courier New', monospace;
+        font-size: 0.8125rem;
+        color: var(--muted);
+    }
+`;
+
+customElements.define('home-view', HomeView);

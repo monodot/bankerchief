@@ -1,27 +1,20 @@
 // app.js — entry point
-// Discovers transaction files under /data/, fetches them, and feeds the
-// <transaction-list> component.
+// Fetches all transaction data, then routes between the home view
+// (overview chart + month list) and the per-month transaction list.
 
+import './components/home-view.js';
 import './components/transaction-list.js';
 
 const DATA_BASE = '/data/';
 
-/** Fetch JSON from a URL, always requesting application/json. */
+// ── HTTP ─────────────────────────────────────────────────────────────────────
+
 async function getJson(url) {
     const res = await fetch(url, { headers: { accept: 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
     return res.json();
 }
 
-/**
- * Walk /data/ and return every .json file as:
- *   { url, account, filename }
- *
- * Layout expected:
- *   /data/
- *     <account>/          ← directory per bank/account
- *       <name>.json       ← one file per statement period
- */
 async function discoverFiles() {
     const topLevel = await getJson(DATA_BASE);
     const files = [];
@@ -29,42 +22,78 @@ async function discoverFiles() {
     for (const entry of topLevel) {
         if (!entry.is_dir) continue;
 
-        const account = entry.name.replace(/\/$/, '');   // strip trailing slash
-        const dirUrl  = `${DATA_BASE}${entry.name}`;
+        const account  = entry.name.replace(/\/$/, '');
+        const dirUrl   = `${DATA_BASE}${entry.name}`;
         const contents = await getJson(dirUrl);
 
         for (const file of contents) {
             if (file.is_dir || !file.name.endsWith('.json')) continue;
-            files.push({
-                url:      `${dirUrl}${file.name}`,
-                account,
-                filename: file.name,
-            });
+            files.push({ url: `${dirUrl}${file.name}`, account });
         }
     }
 
     return files;
 }
 
-const list       = document.getElementById('txn-list');
-const rangeEl    = document.getElementById('txn-range');
+// ── State ────────────────────────────────────────────────────────────────────
+
+/** Transactions grouped by "YYYY-MM" key, e.g. { "2025-09": [...] } */
+let byMonth = {};
+
+function groupByMonth(txns) {
+    return txns.reduce((acc, t) => {
+        const key = t.date.slice(0, 7);
+        (acc[key] = acc[key] || []).push(t);
+        return acc;
+    }, {});
+}
+
+/** "2025-09" → "September 2025" */
+function fmtMonthKey(key) {
+    const [y, m] = key.split('-');
+    return new Date(+y, +m - 1, 1)
+        .toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+// ── Routing ──────────────────────────────────────────────────────────────────
+
+const viewRoot = document.getElementById('view-root');
+const backBtn  = document.getElementById('back-btn');
+
+function route() {
+    const hash = window.location.hash;
+
+    if (hash.startsWith('#month/')) {
+        const key  = hash.slice(7);           // e.g. "2025-09"
+        const txns = byMonth[key] || [];
+
+        backBtn.hidden = false;
+        viewRoot.innerHTML = `
+            <h2 class="view-heading">${fmtMonthKey(key)}</h2>
+            <transaction-list></transaction-list>
+        `;
+        viewRoot.querySelector('transaction-list').data = txns;
+
+    } else {
+        backBtn.hidden = true;
+        viewRoot.innerHTML = '<home-view></home-view>';
+        viewRoot.querySelector('home-view').byMonth = byMonth;
+    }
+}
+
+window.addEventListener('hashchange', route);
+
+// ── Data loading ─────────────────────────────────────────────────────────────
+
 const refreshBtn = document.getElementById('refresh-btn');
 
 async function loadData() {
-    list.loading = true;
-    rangeEl.textContent = '';
     refreshBtn.setAttribute('aria-busy', 'true');
     refreshBtn.disabled = true;
 
     try {
         const files = await discoverFiles();
 
-        if (files.length === 0) {
-            list.data = [];
-            return;
-        }
-
-        // Fetch all files in parallel
         const results = await Promise.all(
             files.map(async f => {
                 const rows = await getJson(f.url);
@@ -72,26 +101,22 @@ async function loadData() {
             })
         );
 
-        // Flatten and sort newest-first
         const all = results.flat().sort((a, b) => b.date.localeCompare(a.date));
+        byMonth = groupByMonth(all);
 
-        list.data = all;
-
-        // Update heading with date range
-        if (all.length > 0) {
-            const fmtMonth = iso => new Date(iso + 'T00:00:00')
-                .toLocaleString('en-GB', { month: 'short', year: 'numeric' });
-            const oldest = fmtMonth(all[all.length - 1].date);
-            const newest = fmtMonth(all[0].date);
-            rangeEl.textContent = oldest === newest ? oldest : `${oldest} – ${newest}`;
-        }
     } catch (err) {
         console.error(err);
-        list.error = err.message;
+        viewRoot.innerHTML = `
+            <p style="font-family:var(--font-mono);font-size:.8rem;color:var(--expense);padding:2rem 0">
+                Error loading data: ${err.message}
+            </p>`;
+        return;
     } finally {
         refreshBtn.removeAttribute('aria-busy');
         refreshBtn.disabled = false;
     }
+
+    route();
 }
 
 refreshBtn.addEventListener('click', loadData);
