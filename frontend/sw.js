@@ -1,4 +1,4 @@
-const CACHE_NAME = 'banky-v1';
+const CACHE_NAME = 'bankerchief-v1';
 
 // In development (localhost / 127.0.0.1) skip all caching so changes are
 // visible immediately without having to clear storage or fiddle with DevTools.

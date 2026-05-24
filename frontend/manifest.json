@@ -1,6 +1,6 @@
 {
-  "name": "Banky",
-  "short_name": "Banky",
+  "name": "Bankerchief",
+  "short_name": "Bankerchief",
   "description": "A web app to manage personal finances.",
   "start_url": ".",
   "display": "standalone",
