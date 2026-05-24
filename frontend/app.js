@@ -15,6 +15,44 @@ async function getJson(url) {
     return res.json();
 }
 
+async function getText(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+    return res.text();
+}
+
+// ── CSV parsing ──────────────────────────────────────────────────────────────
+// Opt-in per account via a `format.json` hint, e.g.
+//   { "format": "csv", "dateFormat": "DD/MM/YYYY",
+//     "columns": { "date": "Date", "description": "Description", "amount": "Amount" },
+//     "flipSign": true }
+
+function toIsoDate(value, fmt) {
+    if (fmt === 'DD/MM/YYYY') {
+        const [d, m, y] = value.split('/');
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return value;   // assume already ISO
+}
+
+/** Naive split on commas — assumes fields contain no embedded commas. */
+function parseCsv(text, fmt) {
+    const cols  = fmt.columns ?? { date: 'Date', description: 'Description', amount: 'Amount' };
+    const lines = text.trim().split(/\r?\n/);
+    const head  = lines.shift().split(',').map(h => h.trim());
+    const at    = name => head.indexOf(name);
+
+    return lines.filter(Boolean).map(line => {
+        const cells  = line.split(',');
+        const amount = parseFloat(cells[at(cols.amount)]);
+        return {
+            date:        toIsoDate(cells[at(cols.date)].trim(), fmt.dateFormat),
+            description: cells[at(cols.description)].trim(),
+            amount:      fmt.flipSign ? -amount : amount,
+        };
+    });
+}
+
 // ── Categorisation ─────────────────────────────────────────────────────────
 
 /** { categories: { name: { isExpense } }, rules: [ { match, category } ] } */
@@ -45,6 +83,8 @@ function isExcluded(category) {
     return rules.categories[category]?.isExpense === false;
 }
 
+const RESERVED = new Set(['format.json']);
+
 async function discoverFiles() {
     const topLevel = await getJson(DATA_BASE);
     const files = [];
@@ -56,9 +96,15 @@ async function discoverFiles() {
         const dirUrl   = `${DATA_BASE}${entry.name}`;
         const contents = await getJson(dirUrl);
 
+        // Optional per-account parse hint.
+        const format = contents.some(f => f.name === 'format.json')
+            ? await getJson(`${dirUrl}format.json`)
+            : null;
+
         for (const file of contents) {
-            if (file.is_dir || !file.name.endsWith('.json')) continue;
-            files.push({ url: `${dirUrl}${file.name}`, account });
+            if (file.is_dir || RESERVED.has(file.name)) continue;
+            if (!file.name.endsWith('.json') && !file.name.endsWith('.csv')) continue;
+            files.push({ url: `${dirUrl}${file.name}`, account, format });
         }
     }
 
@@ -127,7 +173,9 @@ async function loadData() {
 
         const results = await Promise.all(
             files.map(async f => {
-                const rows = await getJson(f.url);
+                const rows = f.format?.format === 'csv'
+                    ? parseCsv(await getText(f.url), f.format)
+                    : await getJson(f.url);
                 return rows.map(t => {
                     const category = classify(t);
                     return { ...t, account: f.account, category, excluded: isExcluded(category) };
