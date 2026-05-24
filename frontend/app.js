@@ -46,9 +46,15 @@ async function discoverFiles() {
     return files;
 }
 
-async function main() {
-    const list = document.getElementById('txn-list');
+const list       = document.getElementById('txn-list');
+const rangeEl    = document.getElementById('txn-range');
+const refreshBtn = document.getElementById('refresh-btn');
+
+async function loadData() {
     list.loading = true;
+    rangeEl.textContent = '';
+    refreshBtn.setAttribute('aria-busy', 'true');
+    refreshBtn.disabled = true;
 
     try {
         const files = await discoverFiles();
@@ -70,10 +76,24 @@ async function main() {
         const all = results.flat().sort((a, b) => b.date.localeCompare(a.date));
 
         list.data = all;
+
+        // Update heading with date range
+        if (all.length > 0) {
+            const fmtMonth = iso => new Date(iso + 'T00:00:00')
+                .toLocaleString('en-GB', { month: 'short', year: 'numeric' });
+            const oldest = fmtMonth(all[all.length - 1].date);
+            const newest = fmtMonth(all[0].date);
+            rangeEl.textContent = oldest === newest ? oldest : `${oldest} – ${newest}`;
+        }
     } catch (err) {
         console.error(err);
         list.error = err.message;
+    } finally {
+        refreshBtn.removeAttribute('aria-busy');
+        refreshBtn.disabled = false;
     }
 }
 
-main();
+refreshBtn.addEventListener('click', loadData);
+
+loadData();
