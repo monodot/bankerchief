@@ -92,7 +92,7 @@ class TransactionList extends HTMLElement {
         const amtClass = t.excluded ? 'transfer' : (isCredit ? 'credit' : 'debit');
         const sign     = isCredit ? '+' : '−';
         const amount   = this.#fmt(Math.abs(t.amount));
-        const balance  = this.#fmt(t.balance);
+        const balance  = Number.isFinite(t.balance) ? this.#fmt(t.balance) : '';
         const date     = this.#fmtDate(t.date);
         const desc     = this.#esc(this.#cleanDesc(t.description));
         const account  = this.#esc(t.account ?? '');
