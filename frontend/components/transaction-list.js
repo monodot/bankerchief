@@ -1,0 +1,347 @@
+/**
+ * <transaction-list> — Web Component
+ *
+ * Usage:
+ *   <transaction-list id="txn-list"></transaction-list>
+ *
+ * JS API:
+ *   el.loading = true          show a loading state
+ *   el.error   = 'message'     show an error state
+ *   el.data    = [ ...rows ]   render transactions
+ *
+ * Each row must have: { date, description, amount, balance, account }
+ */
+class TransactionList extends HTMLElement {
+    #data    = [];
+    #loading = false;
+    #error   = null;
+
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+    }
+
+    // ── Public setters ──────────────────────────────────────────────────────
+
+    set loading(val) {
+        this.#loading = Boolean(val);
+        this.#error   = null;
+        this.#render();
+    }
+
+    set error(msg) {
+        this.#error   = String(msg);
+        this.#loading = false;
+        this.#render();
+    }
+
+    set data(rows) {
+        this.#data    = Array.isArray(rows) ? rows : [];
+        this.#loading = false;
+        this.#error   = null;
+        this.#render();
+    }
+
+    // ── Rendering ───────────────────────────────────────────────────────────
+
+    #render() {
+        const root = this.shadowRoot;
+
+        if (this.#loading) {
+            root.innerHTML = this.#shell(`
+                <div class="state">
+                    <span class="spinner"></span>
+                    Loading transactions…
+                </div>
+            `);
+            return;
+        }
+
+        if (this.#error) {
+            root.innerHTML = this.#shell(`
+                <div class="state error">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm-.75 3.5h1.5v4.5h-1.5V4.5Zm.75 7a.875.875 0 1 1 0-1.75.875.875 0 0 1 0 1.75Z"/>
+                    </svg>
+                    ${this.#esc(this.#error)}
+                </div>
+            `);
+            return;
+        }
+
+        if (this.#data.length === 0) {
+            root.innerHTML = this.#shell(`
+                <div class="state">No transactions found.</div>
+            `);
+            return;
+        }
+
+        const rows = this.#data.map(t => this.#row(t)).join('');
+        root.innerHTML = this.#shell(`
+            <div class="summary-bar">
+                ${this.#summary()}
+            </div>
+            <ul class="list">${rows}</ul>
+        `);
+    }
+
+    /** Render one transaction row. */
+    #row(t) {
+        const isCredit = t.amount >= 0;
+        const amtClass = isCredit ? 'credit' : 'debit';
+        const sign     = isCredit ? '+' : '−';
+        const amount   = this.#fmt(Math.abs(t.amount));
+        const balance  = this.#fmt(t.balance);
+        const date     = this.#fmtDate(t.date);
+        const desc     = this.#esc(this.#cleanDesc(t.description));
+        const account  = this.#esc(t.account ?? '');
+
+        return `
+            <li class="row">
+                <span class="date">${date}</span>
+                <span class="desc">
+                    ${desc}
+                    ${account ? `<span class="account">${account}</span>` : ''}
+                </span>
+                <span class="amount ${amtClass}">${sign}${amount}</span>
+                <span class="balance">${balance}</span>
+            </li>
+        `;
+    }
+
+    /** Summary bar: total in, total out, net. */
+    #summary() {
+        let totalIn = 0, totalOut = 0;
+        for (const t of this.#data) {
+            if (t.amount >= 0) totalIn  += t.amount;
+            else               totalOut += Math.abs(t.amount);
+        }
+        const net = totalIn - totalOut;
+        const netClass = net >= 0 ? 'credit' : 'debit';
+        const netSign  = net >= 0 ? '+' : '−';
+
+        return `
+            <span class="summary-item">
+                <span class="summary-label">In</span>
+                <span class="summary-value credit">+${this.#fmt(totalIn)}</span>
+            </span>
+            <span class="summary-sep"></span>
+            <span class="summary-item">
+                <span class="summary-label">Out</span>
+                <span class="summary-value debit">−${this.#fmt(totalOut)}</span>
+            </span>
+            <span class="summary-sep"></span>
+            <span class="summary-item">
+                <span class="summary-label">Net</span>
+                <span class="summary-value ${netClass}">${netSign}${this.#fmt(Math.abs(net))}</span>
+            </span>
+            <span class="summary-count">${this.#data.length} transactions</span>
+        `;
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /** Format a number as currency (GBP). */
+    #fmt(n) {
+        return '£' + n.toLocaleString('en-GB', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    }
+
+    /** Format an ISO date string as "28 Sep". */
+    #fmtDate(iso) {
+        const d = new Date(iso + 'T00:00:00');   // force local, not UTC
+        return d.toLocaleString('en-GB', { day: 'numeric', month: 'short' });
+    }
+
+    /** Collapse internal runs of whitespace in a description string. */
+    #cleanDesc(s) {
+        return s.replace(/\s+/g, ' ').trim();
+    }
+
+    /** Basic HTML entity escaping to prevent injection. */
+    #esc(s) {
+        return s
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    /** Wrap content in the shadow-root shell with <style> and a container. */
+    #shell(content) {
+        return `<style>${STYLES}</style><div class="root">${content}</div>`;
+    }
+}
+
+// ── Styles (Shadow DOM — fully encapsulated) ──────────────────────────────────
+
+const STYLES = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+
+    :host {
+        display: block;
+        --income:  #4ade80;
+        --expense: #f87171;
+        --border:  rgba(255, 255, 255, 0.07);
+        --muted:   rgba(235, 233, 245, 0.38);
+        --surface: #12121e;
+        --text:    #ebe9f5;
+        --mono:    'DM Mono', 'Courier New', monospace;
+    }
+
+    /* ── States ── */
+    .state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 3rem 1rem;
+        font-size: 0.875rem;
+        color: var(--muted);
+        font-family: var(--mono);
+        letter-spacing: 0.03em;
+    }
+
+    .state.error { color: var(--expense); }
+
+    .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(235, 233, 245, 0.15);
+        border-top-color: rgba(235, 233, 245, 0.6);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Summary bar ── */
+    .summary-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 0.25rem;
+        flex-wrap: wrap;
+    }
+
+    .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+
+    .summary-label {
+        font-family: var(--mono);
+        font-size: 0.5625rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    .summary-value {
+        font-family: var(--mono);
+        font-size: 0.9375rem;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+    }
+
+    .summary-sep {
+        width: 1px;
+        height: 28px;
+        background: var(--border);
+        flex-shrink: 0;
+    }
+
+    .summary-count {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 0.5625rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        align-self: flex-end;
+    }
+
+    /* ── Transaction list ── */
+    .list {
+        list-style: none;
+    }
+
+    .row {
+        display: grid;
+        /* date | description | amount | balance */
+        grid-template-columns: 3.75rem 1fr auto auto;
+        grid-template-rows: auto;
+        column-gap: 0.75rem;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .row:last-child { border-bottom: none; }
+
+    .date {
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+    }
+
+    .desc {
+        font-size: 0.8125rem;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .account {
+        font-family: var(--mono);
+        font-size: 0.5rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    .amount {
+        font-family: var(--mono);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        text-align: right;
+    }
+
+    .balance {
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        color: var(--muted);
+        white-space: nowrap;
+        text-align: right;
+        min-width: 5.5rem;
+    }
+
+    /* Colour coding */
+    .credit { color: var(--income); }
+    .debit  { color: var(--expense); }
+
+    /* ── Mobile: hide balance column on narrow screens ── */
+    @media (max-width: 420px) {
+        .row {
+            grid-template-columns: 3.25rem 1fr auto;
+        }
+        .balance { display: none; }
+    }
+`;
+
+customElements.define('transaction-list', TransactionList);
