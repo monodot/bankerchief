@@ -30,12 +30,13 @@ class HomeView extends HTMLElement {
     }
 
     #summarise(txns) {
-        let income = 0, expense = 0;
+        let income = 0, expense = 0, transfers = 0;
         for (const t of txns) {
-            if (t.amount >= 0) income  += t.amount;
-            else               expense += Math.abs(t.amount);
+            if (t.excluded)         transfers += Math.abs(t.amount);
+            else if (t.amount >= 0) income    += t.amount;
+            else                    expense   += Math.abs(t.amount);
         }
-        return { income, expense, net: income - expense, count: txns.length };
+        return { income, expense, transfers, net: income - expense, count: txns.length };
     }
 
     #fmt(n) {
@@ -66,6 +67,7 @@ class HomeView extends HTMLElement {
                     <span class="month-stats">
                         <span class="credit">+${this.#fmt(s.income)}</span>
                         <span class="debit">−${this.#fmt(s.expense)}</span>
+                        ${s.transfers > 0 ? `<span class="transfer">⇄${this.#fmt(s.transfers)}</span>` : ''}
                         <span class="${netCls} net">${netSign}${this.#fmt(Math.abs(s.net))}</span>
                     </span>
                     <span class="count">${s.count}</span>
@@ -120,6 +122,13 @@ class HomeView extends HTMLElement {
                         label: 'Expenses',
                         data: keys.map(k => summaries[k].expense),
                         backgroundColor: 'rgba(248, 113, 113, 0.85)',
+                        borderRadius: 5,
+                        borderSkipped: false,
+                    },
+                    {
+                        label: 'Transfers',
+                        data: keys.map(k => summaries[k].transfers),
+                        backgroundColor: 'rgba(129, 140, 248, 0.85)',
                         borderRadius: 5,
                         borderSkipped: false,
                     },
@@ -254,6 +263,7 @@ const STYLES = `
     .net   { font-weight: 500; }
     .credit { color: var(--income); }
     .debit  { color: var(--expense); }
+    .transfer { color: var(--accent); }
 
     .count {
         font-family: 'DM Mono', 'Courier New', monospace;

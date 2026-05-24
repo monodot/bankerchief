@@ -81,6 +81,7 @@ class TransactionList extends HTMLElement {
             <div class="summary-bar">
                 ${this.#summary()}
             </div>
+            ${this.#breakdown()}
             <ul class="list">${rows}</ul>
         `);
     }
@@ -88,20 +89,24 @@ class TransactionList extends HTMLElement {
     /** Render one transaction row. */
     #row(t) {
         const isCredit = t.amount >= 0;
-        const amtClass = isCredit ? 'credit' : 'debit';
+        const amtClass = t.excluded ? 'transfer' : (isCredit ? 'credit' : 'debit');
         const sign     = isCredit ? '+' : '−';
         const amount   = this.#fmt(Math.abs(t.amount));
         const balance  = this.#fmt(t.balance);
         const date     = this.#fmtDate(t.date);
         const desc     = this.#esc(this.#cleanDesc(t.description));
         const account  = this.#esc(t.account ?? '');
+        const category = t.category && t.category !== 'Uncategorised' ? this.#esc(t.category) : '';
 
         return `
             <li class="row">
                 <span class="date">${date}</span>
                 <span class="desc">
                     ${desc}
-                    ${account ? `<span class="account">${account}</span>` : ''}
+                    <span class="meta">
+                        ${account ? `<span class="account">${account}</span>` : ''}
+                        ${category ? `<span class="category">${category}</span>` : ''}
+                    </span>
                 </span>
                 <span class="amount ${amtClass}">${sign}${amount}</span>
                 <span class="balance">${balance}</span>
@@ -109,12 +114,13 @@ class TransactionList extends HTMLElement {
         `;
     }
 
-    /** Summary bar: total in, total out, net. */
+    /** Summary bar: total in, total out, transfers, net. */
     #summary() {
-        let totalIn = 0, totalOut = 0;
+        let totalIn = 0, totalOut = 0, transfers = 0;
         for (const t of this.#data) {
-            if (t.amount >= 0) totalIn  += t.amount;
-            else               totalOut += Math.abs(t.amount);
+            if (t.excluded)         transfers += Math.abs(t.amount);
+            else if (t.amount >= 0) totalIn   += t.amount;
+            else                    totalOut  += Math.abs(t.amount);
         }
         const net = totalIn - totalOut;
         const netClass = net >= 0 ? 'credit' : 'debit';
@@ -130,12 +136,43 @@ class TransactionList extends HTMLElement {
                 <span class="summary-label">Out</span>
                 <span class="summary-value debit">−${this.#fmt(totalOut)}</span>
             </span>
+            ${transfers > 0 ? `
+                <span class="summary-sep"></span>
+                <span class="summary-item">
+                    <span class="summary-label">Transfers</span>
+                    <span class="summary-value transfer">⇄${this.#fmt(transfers)}</span>
+                </span>
+            ` : ''}
             <span class="summary-sep"></span>
             <span class="summary-item">
                 <span class="summary-label">Net</span>
                 <span class="summary-value ${netClass}">${netSign}${this.#fmt(Math.abs(net))}</span>
             </span>
             <span class="summary-count">${this.#data.length} transactions</span>
+        `;
+    }
+
+    /** Spend-by-category breakdown (expense categories only, largest first). */
+    #breakdown() {
+        const totals = {};
+        for (const t of this.#data) {
+            if (t.excluded || t.amount >= 0) continue;
+            const cat = t.category || 'Uncategorised';
+            totals[cat] = (totals[cat] || 0) + Math.abs(t.amount);
+        }
+        const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+        if (rows.length === 0) return '';
+
+        return `
+            <p class="breakdown-label">Spending by category</p>
+            <ul class="breakdown">
+                ${rows.map(([cat, total]) => `
+                    <li class="breakdown-row">
+                        <span class="breakdown-cat">${this.#esc(cat)}</span>
+                        <span class="breakdown-amt debit">−${this.#fmt(total)}</span>
+                    </li>
+                `).join('')}
+            </ul>
         `;
     }
 
@@ -184,6 +221,7 @@ const STYLES = `
         display: block;
         --income:  #4ade80;
         --expense: #f87171;
+        --accent:  #818cf8;
         --border:  rgba(255, 255, 255, 0.07);
         --muted:   rgba(235, 233, 245, 0.38);
         --surface: #12121e;
@@ -334,6 +372,57 @@ const STYLES = `
     /* Colour coding */
     .credit { color: var(--income); }
     .debit  { color: var(--expense); }
+    .transfer { color: var(--accent); }
+
+    /* ── Category breakdown ── */
+    .breakdown-label {
+        font-family: var(--mono);
+        font-size: 0.5625rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 0.875rem 0 0.5rem;
+    }
+
+    .breakdown {
+        list-style: none;
+        margin-bottom: 0.75rem;
+    }
+
+    .breakdown-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.4rem 0;
+    }
+
+    .breakdown-cat {
+        font-size: 0.8125rem;
+        color: var(--text);
+    }
+
+    .breakdown-amt {
+        font-family: var(--mono);
+        font-size: 0.8125rem;
+        font-weight: 500;
+    }
+
+    .meta {
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+    }
+
+    .category {
+        font-family: var(--mono);
+        font-size: 0.5rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--accent);
+        border: 1px solid rgba(129, 140, 248, 0.3);
+        border-radius: 3px;
+        padding: 0.05rem 0.3rem;
+    }
 
     /* ── Mobile: hide balance column on narrow screens ── */
     @media (max-width: 420px) {

@@ -15,6 +15,36 @@ async function getJson(url) {
     return res.json();
 }
 
+// ── Categorisation ─────────────────────────────────────────────────────────
+
+/** { categories: { name: { isExpense } }, rules: [ { match, category } ] } */
+let rules = { categories: {}, rules: [] };
+
+// Collapse whitespace + lowercase so "VANGUARD LONDON" matches "VANGUARD   LONDON".
+const normalise = s => s.replace(/\s+/g, ' ').trim().toLowerCase();
+
+async function loadRules() {
+    try {
+        rules = await getJson(`${DATA_BASE}rules.json`);
+    } catch {
+        rules = { categories: {}, rules: [] };   // no rules file → all Uncategorised
+    }
+}
+
+/** First matching rule wins; no match → "Uncategorised". */
+function classify(txn) {
+    const desc = normalise(txn.description);
+    for (const r of rules.rules) {
+        if (desc.includes(normalise(r.match))) return r.category;
+    }
+    return 'Uncategorised';
+}
+
+/** Transfer categories (isExpense:false) count as neither income nor expense. */
+function isExcluded(category) {
+    return rules.categories[category]?.isExpense === false;
+}
+
 async function discoverFiles() {
     const topLevel = await getJson(DATA_BASE);
     const files = [];
@@ -92,12 +122,16 @@ async function loadData() {
     refreshBtn.disabled = true;
 
     try {
+        await loadRules();
         const files = await discoverFiles();
 
         const results = await Promise.all(
             files.map(async f => {
                 const rows = await getJson(f.url);
-                return rows.map(t => ({ ...t, account: f.account }));
+                return rows.map(t => {
+                    const category = classify(t);
+                    return { ...t, account: f.account, category, excluded: isExcluded(category) };
+                });
             })
         );
 
