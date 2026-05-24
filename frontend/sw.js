@@ -1,4 +1,9 @@
-const CACHE_NAME = 'basic-vanilla-pwa-v1';
+const CACHE_NAME = 'banky-v1';
+
+// In development (localhost / 127.0.0.1) skip all caching so changes are
+// visible immediately without having to clear storage or fiddle with DevTools.
+const DEV = self.location.hostname === 'localhost' ||
+            self.location.hostname === '127.0.0.1';
 
 const ASSETS = [
   './',
@@ -8,8 +13,13 @@ const ASSETS = [
   './icons/icon-512.png',
 ];
 
-// Install: pre-cache all app shell assets
+// Install: pre-cache all app shell assets (skipped in dev)
 self.addEventListener('install', event => {
+  if (DEV) {
+    console.log('[SW] Dev mode — skipping pre-cache');
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
       Promise.all(
@@ -36,8 +46,11 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: serve from cache, fall back to network; return offline page on failure
+// Fetch: in dev, always go to the network so edits are immediately visible.
+// In production, serve from cache with a network fallback.
 self.addEventListener('fetch', event => {
+  if (DEV) return; // let the browser handle it normally
+
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
