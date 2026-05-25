@@ -117,6 +117,13 @@ class HomeView extends HTMLElement {
             sortedKeys.map(k => [k, this.#summarise(this.#byMonth[k])])
         );
 
+        const totals = windowKeys.reduce((acc, k) => {
+            acc.income  += summaries[k].income;
+            acc.expense += summaries[k].expense;
+            return acc;
+        }, { income: 0, expense: 0 });
+        totals.net = totals.income - totals.expense;
+
         const monthRows = allDesc.map(k => {
             const s       = summaries[k];
             const netSign = s.net >= 0 ? '+' : '−';
@@ -145,6 +152,22 @@ class HomeView extends HTMLElement {
                         <button class="range-btn ${range === 6 ? 'active' : ''}" data-range="6">6M</button>
                     </div>
                 </div>
+                ${windowKeys.length > 0 ? `
+                    <div class="stats-row">
+                        <div class="stat">
+                            <span class="stat-label">Income</span>
+                            <span class="stat-value credit">+${this.#fmt(totals.income)}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Expense</span>
+                            <span class="stat-value debit">−${this.#fmt(totals.expense)}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Delta</span>
+                            <span class="stat-value ${totals.net >= 0 ? 'credit' : 'debit'}">${totals.net >= 0 ? '+' : '−'}${this.#fmt(Math.abs(totals.net))}</span>
+                        </div>
+                    </div>
+                ` : ''}
                 ${windowKeys.length > 0 ? `
                     <p class="chart-title">Income vs expense · last ${range} months</p>
                     <div class="chart-card">
@@ -433,6 +456,40 @@ const STYLES = `
     }
     .range-btn + .range-btn { border-left: 1px solid var(--border); }
     .range-btn.active { background: var(--accent); color: #FFFCF7; }
+
+    /* Stat panels */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.75rem 0.875rem;
+    }
+    .stat + .stat { border-left: 1px solid var(--border); }
+
+    .stat-label {
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.5625rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    .stat-value {
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    .stat-value.credit { color: var(--income); }
+    .stat-value.debit  { color: var(--expense); }
 
     /* Chart */
     .chart-card {
