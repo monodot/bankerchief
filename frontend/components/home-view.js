@@ -59,6 +59,44 @@ class HomeView extends HTMLElement {
         return Object.entries(totals).sort((a, b) => b[1] - a[1]);
     }
 
+    #monthLetter(key) {
+        const [y, m] = key.split('-');
+        return new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'narrow' });
+    }
+
+    /**
+     * Per-account data coverage across a contiguous month axis.
+     * A cell is 'on' (has data), 'gap' (no data *between* the account's first
+     * and last month — a hole, almost certainly a forgotten upload), or 'off'
+     * (no data before/after the account's span — benign). Returns null with
+     * fewer than two accounts, where a comparison would be meaningless.
+     */
+    #coverage() {
+        const present = {};   // account → Set of "YYYY-MM" with ≥1 txn
+        for (const [month, txns] of Object.entries(this.#byMonth)) {
+            for (const t of txns) (present[t.account] ??= new Set()).add(month);
+        }
+        const accounts = Object.keys(present).sort();
+        if (accounts.length < 2) return null;
+
+        const sorted = Object.keys(this.#byMonth).sort();
+        const months = monthRange(sorted[0], sorted[sorted.length - 1]);
+
+        const rows = accounts.map(account => {
+            const has   = present[account];
+            const owned = months.filter(m => has.has(m));
+            const first = owned[0], last = owned[owned.length - 1];
+            const cells = months.map(m => {
+                if (has.has(m))            return 'on';
+                if (m > first && m < last) return 'gap';
+                return 'off';
+            });
+            return { account, cells };
+        });
+
+        return { months, rows };
+    }
+
     // ── Render ───────────────────────────────────────────────────────────────
 
     #render() {
@@ -73,6 +111,7 @@ class HomeView extends HTMLElement {
 
         const catData    = this.#expensesByCategory(windowKeys);
         const catTotal   = catData.reduce((sum, [, v]) => sum + v, 0);
+        const coverage   = this.#coverage();
 
         const summaries  = Object.fromEntries(
             sortedKeys.map(k => [k, this.#summarise(this.#byMonth[k])])
@@ -106,8 +145,8 @@ class HomeView extends HTMLElement {
                         <button class="range-btn ${range === 6 ? 'active' : ''}" data-range="6">6M</button>
                     </div>
                 </div>
-
                 ${windowKeys.length > 0 ? `
+                    <p class="chart-title">Income vs expense · last ${range} months</p>
                     <div class="chart-card">
                         <div class="chart-wrap">
                             <canvas id="chart"></canvas>
@@ -121,6 +160,30 @@ class HomeView extends HTMLElement {
                         <div class="chart-wrap donut-wrap">
                             <canvas id="donut"></canvas>
                         </div>
+                    </div>
+                ` : ''}
+
+
+                ${coverage ? `
+                    <p class="chart-title">Coverage · data uploaded by account</p>
+                    <div class="coverage-card">
+                        <div class="cov-grid">
+                            <div class="cov-row">
+                                <span class="cov-label"></span>
+                                <span class="cov-cells">
+                                    ${coverage.months.map(m => `<span class="cov-tick">${this.#monthLetter(m)}</span>`).join('')}
+                                </span>
+                            </div>
+                            ${coverage.rows.map(r => `
+                                <div class="cov-row">
+                                    <span class="cov-label">${r.account}</span>
+                                    <span class="cov-cells">
+                                        ${r.cells.map(c => `<span class="cov-cell ${c}"></span>`).join('')}
+                                    </span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <p class="cov-caption">${this.#fmtKey(coverage.months[0])} → ${this.#fmtKey(coverage.months[coverage.months.length - 1])}</p>
                     </div>
                 ` : ''}
 
@@ -284,6 +347,18 @@ class HomeView extends HTMLElement {
     }
 }
 
+/** Contiguous list of "YYYY-MM" keys from start to end, inclusive. */
+function monthRange(start, end) {
+    const out = [];
+    let [y, m] = start.split('-').map(Number);
+    const [ey, em] = end.split('-').map(Number);
+    while (y < ey || (y === ey && m <= em)) {
+        out.push(`${y}-${String(m).padStart(2, '0')}`);
+        if (++m > 12) { m = 1; y++; }
+    }
+    return out;
+}
+
 // Draws the total in the hole of the doughnut. Reads options.plugins.centerText.
 const CENTER_TEXT = {
     id: 'centerText',
@@ -382,6 +457,61 @@ const STYLES = `
         text-transform: uppercase;
         color: var(--muted);
         margin-bottom: 0.625rem;
+    }
+
+    /* Coverage matrix */
+    .coverage-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .cov-grid { display: flex; flex-direction: column; gap: 0.375rem; }
+
+    .cov-row { display: flex; align-items: center; gap: 0.5rem; }
+
+    .cov-label {
+        width: 5.5rem;
+        flex-shrink: 0;
+        text-align: right;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.625rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cov-cells { display: flex; flex: 1; gap: 2px; }
+
+    .cov-tick {
+        flex: 1;
+        text-align: center;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.5rem;
+        color: var(--muted);
+    }
+
+    .cov-cell {
+        flex: 1;
+        height: 1.25rem;
+        border-radius: 2px;
+        background: rgba(58, 48, 38, 0.07);
+    }
+    .cov-cell.on  { background: var(--accent); }
+    .cov-cell.gap { background: var(--expense); }
+
+    .cov-caption {
+        margin-top: 0.625rem;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.5625rem;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        text-align: right;
     }
 
     /* Month list */
