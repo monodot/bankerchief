@@ -35,15 +35,25 @@ function toIsoDate(value, fmt) {
     return value;   // assume already ISO
 }
 
-/** Naive split on commas — assumes fields contain no embedded commas. */
+/** Split a CSV line, respecting double-quoted fields (RFC 4180). */
+function splitCsvLine(line) {
+    const cells = []; let cur = '', q = false;
+    for (const ch of line) {
+        if (ch === '"') q = !q;
+        else if (ch === ',' && !q) { cells.push(cur); cur = ''; }
+        else cur += ch;
+    }
+    return [...cells, cur];
+}
+
 function parseCsv(text, fmt) {
     const cols  = fmt.columns ?? { date: 'Date', description: 'Description', amount: 'Amount' };
     const lines = text.trim().split(/\r?\n/);
-    const head  = lines.shift().split(',').map(h => h.trim());
+    const head  = splitCsvLine(lines.shift()).map(h => h.trim());
     const at    = name => head.indexOf(name);
 
     return lines.filter(Boolean).map(line => {
-        const cells  = line.split(',');
+        const cells  = splitCsvLine(line);
         const amount = parseFloat(cells[at(cols.amount)]);
         return {
             date:        toIsoDate(cells[at(cols.date)].trim(), fmt.dateFormat),
