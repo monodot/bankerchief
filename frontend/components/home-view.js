@@ -156,13 +156,6 @@ class HomeView extends HTMLElement {
                         borderRadius: 5,
                         borderSkipped: false,
                     },
-                    {
-                        label: 'Transfers',
-                        data: keys.map(k => summaries[k].transfers),
-                        backgroundColor: 'rgba(15, 110, 120, 0.85)',
-                        borderRadius: 5,
-                        borderSkipped: false,
-                    },
                 ],
             },
             options: {
