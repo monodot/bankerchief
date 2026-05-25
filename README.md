@@ -1,9 +1,17 @@
-# bankerchief: Simple income and expense visualisation
+# bankerchief: Simple income and expense reports
 
-A read-only view of your bank exports - no import step, no database. Drop files into a folder, reload the page, and get charts and categorised spending reports.
+<img src="./logo.webp" width="150" height="150"/>
+
+---
+
+Bankerchief creates simple reports from your bank's export data, to track your income and spending. There's no import step, no bank syncing, and no database. Drop CSV or JSON files into a folder, reload the page, and get charts and categorised spending reports.
 
 Designed to run on a home server and accessed via a VPN like Tailscale. Can
 also be installed as a PWA on mobile.
+
+<img src="./screenshot.webp" width="220" height="477"/>
+
+---
 
 ## How it works
 
