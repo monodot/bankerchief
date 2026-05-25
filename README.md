@@ -157,3 +157,7 @@ anywhere in your home network or whenever your device is connected to your VPN.
 On your mobile device, install **Tailscale** (or configure your own VPN). Then open Safari and go to `http://your-machine-name:3000`.
 
 Click the **Share** button in Safari and click **Add to Home Screen** to install it onto your device.
+
+## Copyright and license
+
+Source code (c) 2026 Tom Donohue. Licensed under AGPLv3.
