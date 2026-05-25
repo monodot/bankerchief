@@ -26,11 +26,21 @@ async function getText(url) {
 //   { "format": "csv", "dateFormat": "DD/MM/YYYY",
 //     "columns": { "date": "Date", "description": "Description", "amount": "Amount" },
 //     "flipSign": true }
+// For a headerless CSV set "noHeader": true and reference columns by 0-based
+// index. `amount` may be an array of indices (first non-empty wins) for exports
+// that split debits/credits across two columns.
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function toIsoDate(value, fmt) {
     if (fmt === 'DD/MM/YYYY') {
         const [d, m, y] = value.split('/');
         return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    if (fmt === 'DD Mon YY') {                // e.g. "22 Apr 26"
+        const [d, mon, y] = value.split(/\s+/);
+        const m = String(MONTHS.indexOf(mon) + 1).padStart(2, '0');
+        return `20${y}-${m}-${d.padStart(2, '0')}`;
     }
     return value;   // assume already ISO
 }
@@ -49,15 +59,18 @@ function splitCsvLine(line) {
 function parseCsv(text, fmt) {
     const cols  = fmt.columns ?? { date: 'Date', description: 'Description', amount: 'Amount' };
     const lines = text.trim().split(/\r?\n/);
-    const head  = splitCsvLine(lines.shift()).map(h => h.trim());
-    const at    = name => head.indexOf(name);
+    const head  = fmt.noHeader ? null : splitCsvLine(lines.shift()).map(h => h.trim());
+    const at    = col => head ? head.indexOf(col) : col;        // header name → index, or pass-through
+    const cell  = (cells, col) => (cells[at(col)] ?? '').trim();
 
     return lines.filter(Boolean).map(line => {
-        const cells  = splitCsvLine(line);
-        const amount = parseFloat(cells[at(cols.amount)]);
+        const cells   = splitCsvLine(line);
+        const amtCols = Array.isArray(cols.amount) ? cols.amount : [cols.amount];
+        const raw     = amtCols.map(c => cell(cells, c)).find(Boolean) ?? '';
+        const amount  = parseFloat(raw.replace(/,/g, ''));      // strip thousands separators
         return {
-            date:        toIsoDate(cells[at(cols.date)].trim(), fmt.dateFormat),
-            description: cells[at(cols.description)].trim(),
+            date:        toIsoDate(cell(cells, cols.date), fmt.dateFormat),
+            description: cell(cells, cols.description),
             amount:      fmt.flipSign ? -amount : amount,
         };
     });
