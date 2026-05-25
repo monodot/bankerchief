@@ -7,7 +7,7 @@ import './components/transaction-list.js';
 import './components/draft-sheet.js';
 import { draftStore } from './draft-store.js';
 
-const DATA_BASE = '/data/';
+const DATA_BASE = './data/';
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 
@@ -116,10 +116,16 @@ function availableCategories() {
     return [...set].sort();
 }
 
-const RESERVED = new Set(['format.json']);
+const RESERVED = new Set(['format.json', 'index.json']);
+
+/** Try a pre-generated index.json; fall back to Caddy's directory browse. */
+async function fetchDir(url) {
+    try { return await getJson(`${url}index.json`); } catch {}
+    return getJson(url);
+}
 
 async function discoverFiles() {
-    const topLevel = await getJson(DATA_BASE);
+    const topLevel = await fetchDir(DATA_BASE);
     const files = [];
 
     for (const entry of topLevel) {
@@ -127,7 +133,7 @@ async function discoverFiles() {
 
         const account  = entry.name.replace(/\/$/, '');
         const dirUrl   = `${DATA_BASE}${entry.name}`;
-        const contents = await getJson(dirUrl);
+        const contents = await fetchDir(dirUrl);
 
         // Optional per-account parse hint.
         const format = contents.some(f => f.name === 'format.json')
