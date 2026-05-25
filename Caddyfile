@@ -1,4 +1,7 @@
 :3000 {
+    # Caching disabled for now — always serve fresh assets
+    header Cache-Control "no-store"
+
     # Serve transaction files with directory listing + CORS
     handle_path /data/* {
         root * /transactions
