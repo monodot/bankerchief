@@ -59,6 +59,28 @@ class HomeView extends HTMLElement {
         return Object.entries(totals).sort((a, b) => b[1] - a[1]);
     }
 
+    /** Largest uncategorised transactions across the given month keys, by absolute value. */
+    #largestUncategorised(keys, limit = 10) {
+        const txns = [];
+        for (const k of keys) {
+            for (const t of this.#byMonth[k] ?? []) {
+                if (t.category === 'Uncategorised' && t.amount < 0) txns.push(t);
+            }
+        }
+        return txns
+            .sort((a, b) => a.amount - b.amount)   // most negative (largest spend) first
+            .slice(0, limit);
+    }
+
+    /** Basic HTML entity escaping — bank descriptions are injected as innerHTML. */
+    #esc(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     #monthLetter(key) {
         const [y, m] = key.split('-');
         return new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'narrow' });
@@ -112,6 +134,8 @@ class HomeView extends HTMLElement {
         const catData    = this.#expensesByCategory(windowKeys);
         const catTotal   = catData.reduce((sum, [, v]) => sum + v, 0);
         const coverage   = this.#coverage();
+        const uncat      = this.#largestUncategorised(windowKeys);
+        const uncatMax   = uncat.length ? Math.abs(uncat[0].amount) : 0;
 
         const summaries  = Object.fromEntries(
             sortedKeys.map(k => [k, this.#summarise(this.#byMonth[k])])
@@ -207,6 +231,24 @@ class HomeView extends HTMLElement {
                             `).join('')}
                         </div>
                         <p class="cov-caption">${this.#fmtKey(coverage.months[0])} → ${this.#fmtKey(coverage.months[coverage.months.length - 1])}</p>
+                    </div>
+                ` : ''}
+
+                ${uncat.length > 0 ? `
+                    <p class="chart-title">Uncategorised · largest in last ${range} months</p>
+                    <div class="uncat-card">
+                        ${uncat.map(t => {
+                            const width = uncatMax ? (Math.abs(t.amount) / uncatMax) * 100 : 0;
+                            return `
+                                <div class="uncat-row">
+                                    <div class="uncat-line">
+                                        <span class="uncat-desc">${this.#esc(t.description.replace(/\s+/g, ' ').trim())}</span>
+                                        <span class="uncat-amt debit">−${this.#fmt(Math.abs(t.amount))}</span>
+                                    </div>
+                                    <div class="uncat-bar"><span class="uncat-bar-fill" style="width:${width}%"></span></div>
+                                    <span class="uncat-meta">${this.#esc(t.account)} · ${t.date}</span>
+                                </div>`;
+                        }).join('')}
                     </div>
                 ` : ''}
 
@@ -569,6 +611,68 @@ const STYLES = `
         letter-spacing: 0.05em;
         color: var(--muted);
         text-align: right;
+    }
+
+    /* Uncategorised — largest by value */
+    .uncat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 0.5rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .uncat-row {
+        padding: 0.625rem 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .uncat-row:last-child { border-bottom: none; }
+
+    .uncat-line {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .uncat-desc {
+        font-size: 0.8125rem;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .uncat-amt {
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .uncat-amt.debit { color: var(--expense); }
+
+    .uncat-bar {
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(58, 48, 38, 0.07);
+        margin: 0.375rem 0 0.25rem;
+        overflow: hidden;
+    }
+
+    .uncat-bar-fill {
+        display: block;
+        height: 100%;
+        border-radius: 2px;
+        background: var(--expense);
+    }
+
+    .uncat-meta {
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.5625rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
     }
 
     /* Month list */
