@@ -114,21 +114,21 @@ class HomeView extends HTMLElement {
                     {
                         label: 'Income',
                         data: keys.map(k => summaries[k].income),
-                        backgroundColor: 'rgba(74, 222, 128, 0.85)',
+                        backgroundColor: 'rgba(63, 115, 80, 0.85)',
                         borderRadius: 5,
                         borderSkipped: false,
                     },
                     {
                         label: 'Expenses',
                         data: keys.map(k => summaries[k].expense),
-                        backgroundColor: 'rgba(248, 113, 113, 0.85)',
+                        backgroundColor: 'rgba(168, 69, 58, 0.85)',
                         borderRadius: 5,
                         borderSkipped: false,
                     },
                     {
                         label: 'Transfers',
                         data: keys.map(k => summaries[k].transfers),
-                        backgroundColor: 'rgba(129, 140, 248, 0.85)',
+                        backgroundColor: 'rgba(15, 110, 120, 0.85)',
                         borderRadius: 5,
                         borderSkipped: false,
                     },
@@ -142,21 +142,21 @@ class HomeView extends HTMLElement {
                         position: 'top',
                         align: 'start',
                         labels: {
-                            color: 'rgba(235,233,245,0.55)',
+                            color: 'rgba(51,48,43,0.7)',
                             usePointStyle: true,
                             pointStyle: 'rect',
                             boxWidth: 10,
                             boxHeight: 10,
-                            font: { family: "'DM Mono','Courier New',monospace", size: 10 },
+                            font: { family: "ui-monospace, Menlo, Monaco, Consolas, monospace", size: 10 },
                             padding: 16,
                         },
                     },
                     tooltip: {
-                        backgroundColor: '#1a1a2e',
-                        borderColor: 'rgba(255,255,255,0.1)',
+                        backgroundColor: '#33302B',
+                        borderColor: 'rgba(58,48,38,0.2)',
                         borderWidth: 1,
-                        titleColor: 'rgba(235,233,245,0.9)',
-                        bodyColor:  'rgba(235,233,245,0.65)',
+                        titleColor: 'rgba(251,244,236,0.95)',
+                        bodyColor:  'rgba(251,244,236,0.7)',
                         padding: 10,
                         callbacks: {
                             label: ctx =>
@@ -169,16 +169,16 @@ class HomeView extends HTMLElement {
                         grid:   { display: false },
                         border: { display: false },
                         ticks:  {
-                            color: 'rgba(235,233,245,0.45)',
-                            font:  { family: "'DM Mono','Courier New',monospace", size: 10 },
+                            color: 'rgba(51,48,43,0.55)',
+                            font:  { family: "ui-monospace, Menlo, Monaco, Consolas, monospace", size: 10 },
                         },
                     },
                     y: {
-                        grid:   { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+                        grid:   { color: 'rgba(58,48,38,0.10)', drawTicks: false },
                         border: { display: false },
                         ticks:  {
-                            color: 'rgba(235,233,245,0.45)',
-                            font:  { family: "'DM Mono','Courier New',monospace", size: 10 },
+                            color: 'rgba(51,48,43,0.55)',
+                            font:  { family: "ui-monospace, Menlo, Monaco, Consolas, monospace", size: 10 },
                             padding: 8,
                             callback: v => '£' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v),
                         },
@@ -192,12 +192,10 @@ class HomeView extends HTMLElement {
 // ── Shadow DOM styles ─────────────────────────────────────────────────────────
 
 const STYLES = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@1,300&display=swap');
-
     :host { display: block; }
 
     .heading {
-        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-family: Georgia, 'Times New Roman', serif;
         font-style: italic;
         font-weight: 300;
         font-size: 1.5rem;
@@ -221,7 +219,7 @@ const STYLES = `
 
     /* Month list */
     .section-label {
-        font-family: 'DM Mono', 'Courier New', monospace;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
         font-size: 0.5625rem;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -255,7 +253,7 @@ const STYLES = `
         display: flex;
         flex: 1;
         gap: 0.625rem;
-        font-family: 'DM Mono', 'Courier New', monospace;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
         font-size: 0.75rem;
         flex-wrap: wrap;
     }
@@ -266,7 +264,7 @@ const STYLES = `
     .transfer { color: var(--accent); }
 
     .count {
-        font-family: 'DM Mono', 'Courier New', monospace;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
         font-size: 0.625rem;
         color: var(--muted);
         flex-shrink: 0;
@@ -282,7 +280,7 @@ const STYLES = `
     .empty {
         padding: 3rem 0;
         text-align: center;
-        font-family: 'DM Mono', 'Courier New', monospace;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
         font-size: 0.8125rem;
         color: var(--muted);
     }

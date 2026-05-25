@@ -215,18 +215,9 @@ class TransactionList extends HTMLElement {
 // ── Styles (Shadow DOM — fully encapsulated) ──────────────────────────────────
 
 const STYLES = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
-
     :host {
         display: block;
-        --income:  #4ade80;
-        --expense: #f87171;
-        --accent:  #818cf8;
-        --border:  rgba(255, 255, 255, 0.07);
-        --muted:   rgba(235, 233, 245, 0.38);
-        --surface: #12121e;
-        --text:    #ebe9f5;
-        --mono:    'DM Mono', 'Courier New', monospace;
+        --mono: ui-monospace, Menlo, Monaco, Consolas, monospace;
     }
 
     /* ── States ── */
@@ -247,8 +238,8 @@ const STYLES = `
     .spinner {
         width: 14px;
         height: 14px;
-        border: 2px solid rgba(235, 233, 245, 0.15);
-        border-top-color: rgba(235, 233, 245, 0.6);
+        border: 2px solid rgba(58, 48, 38, 0.15);
+        border-top-color: rgba(58, 48, 38, 0.6);
         border-radius: 50%;
         animation: spin 0.7s linear infinite;
         flex-shrink: 0;
@@ -419,7 +410,7 @@ const STYLES = `
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: var(--accent);
-        border: 1px solid rgba(129, 140, 248, 0.3);
+        border: 1px solid rgba(15, 110, 120, 0.3);
         border-radius: 3px;
         padding: 0.05rem 0.3rem;
     }
