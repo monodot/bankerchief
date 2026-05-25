@@ -26,6 +26,7 @@ Bankerchief has no backend and no database. It runs entirely in the browser:
 
 What you'll need:
 
+- [podman](https://podman.io/docs/installation) or [docker](https://www.docker.com/products/docker-desktop/) installed
 - Data files from the bank/current account(s) you want to track
 - Data files from all credit cards which you send payments to from the above accounts
 - A rules file to categorise transactions (see below for the syntax)
