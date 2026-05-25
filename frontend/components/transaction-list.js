@@ -5,23 +5,47 @@
  *   <transaction-list id="txn-list"></transaction-list>
  *
  * JS API:
- *   el.loading = true          show a loading state
- *   el.error   = 'message'     show an error state
- *   el.data    = [ ...rows ]   render transactions
+ *   el.loading    = true          show a loading state
+ *   el.error      = 'message'     show an error state
+ *   el.data       = [ ...rows ]   render transactions
+ *   el.categories = [ ...names ]  categories offered when drafting rules
  *
  * Each row must have: { date, description, amount, balance, account }
+ *
+ * Rule drafting is delegated to the shared draftStore + <draft-sheet>.
  */
+import { draftStore } from '../draft-store.js';
+import './category-donut.js';
+
 class TransactionList extends HTMLElement {
-    #data    = [];
-    #loading = false;
-    #error   = null;
+    #data       = [];
+    #loading    = false;
+    #error      = null;
+    #categories = [];
+    #filter     = 'all';   // 'all' | 'uncategorised'
+    #unsub      = null;
 
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
     }
 
+    connectedCallback() {
+        // A draft change only affects the rows (taggable state + pills) — patch them,
+        // not the whole view, which would tear down and rebuild the donut.
+        this.#unsub = draftStore.subscribe(() => this.#fillRows());
+    }
+
+    disconnectedCallback() {
+        this.#unsub?.();
+    }
+
     // ── Public setters ──────────────────────────────────────────────────────
+
+    /** Existing category names to offer in the picker (no re-render — `data` follows). */
+    set categories(list) {
+        this.#categories = Array.isArray(list) ? list : [];
+    }
 
     set loading(val) {
         this.#loading = Boolean(val);
@@ -76,14 +100,40 @@ class TransactionList extends HTMLElement {
             return;
         }
 
-        const rows = this.#data.map(t => this.#row(t)).join('');
         root.innerHTML = this.#shell(`
             <div class="summary-bar">
                 ${this.#summary()}
             </div>
-            ${this.#breakdown()}
-            <ul class="list">${rows}</ul>
+            <category-donut></category-donut>
+            <div class="list-controls">
+                <div class="filter-toggle" role="group" aria-label="Filter transactions">
+                    <button class="filter-btn ${this.#filter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+                    <button class="filter-btn ${this.#filter === 'uncategorised' ? 'active' : ''}" data-filter="uncategorised">Uncategorised</button>
+                </div>
+            </div>
+            <div class="list-area"></div>
         `);
+
+        const donut = root.querySelector('category-donut');
+        donut.heading      = 'Expenses by category';
+        donut.transactions = this.#data;
+
+        this.#fillRows();
+        this.#bind();
+    }
+
+    /** Fill the list area for the current filter + draft state (keeps the donut intact). */
+    #fillRows() {
+        const area = this.shadowRoot.querySelector('.list-area');
+        if (!area) return;
+
+        const visible = this.#filter === 'uncategorised'
+            ? this.#data.filter(t => (t.category || 'Uncategorised') === 'Uncategorised')
+            : this.#data;
+
+        area.innerHTML = visible.length
+            ? `<ul class="list">${visible.map(t => this.#row(t)).join('')}</ul>`
+            : `<div class="state">No uncategorised transactions.</div>`;
     }
 
     /** Render one transaction row. */
@@ -98,14 +148,21 @@ class TransactionList extends HTMLElement {
         const account  = this.#esc(t.account ?? '');
         const category = t.category && t.category !== 'Uncategorised' ? this.#esc(t.category) : '';
 
+        const key       = draftStore.key(t);
+        const tag       = draftStore.tag(key);
+        const draftPill = tag
+            ? `<span class="draft-pill">${this.#esc(tag.category)}${tag.scope === 'all' ? ' · all' : ''}</span>`
+            : '';
+
         return `
-            <li class="row">
+            <li class="row ${draftStore.mode ? 'taggable' : ''}" data-key="${this.#esc(key)}">
                 <span class="date">${date}</span>
                 <span class="desc">
                     ${desc}
                     <span class="meta">
                         ${account ? `<span class="account">${account}</span>` : ''}
                         ${category ? `<span class="category">${category}</span>` : ''}
+                        ${draftPill}
                     </span>
                 </span>
                 <span class="amount ${amtClass}">${sign}${amount}</span>
@@ -152,28 +209,27 @@ class TransactionList extends HTMLElement {
         `;
     }
 
-    /** Spend-by-category breakdown (expense categories only, largest first). */
-    #breakdown() {
-        const totals = {};
-        for (const t of this.#data) {
-            if (t.excluded || t.amount >= 0) continue;
-            const cat = t.category || 'Uncategorised';
-            totals[cat] = (totals[cat] || 0) + Math.abs(t.amount);
-        }
-        const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-        if (rows.length === 0) return '';
+    #bind() {
+        this.shadowRoot.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.filter !== this.#filter) {
+                    this.#filter = btn.dataset.filter;
+                    this.shadowRoot.querySelectorAll('.filter-btn').forEach(b =>
+                        b.classList.toggle('active', b.dataset.filter === this.#filter));
+                    this.#fillRows();
+                }
+            });
+        });
 
-        return `
-            <p class="breakdown-label">Spending by category</p>
-            <ul class="breakdown">
-                ${rows.map(([cat, total]) => `
-                    <li class="breakdown-row">
-                        <span class="breakdown-cat">${this.#esc(cat)}</span>
-                        <span class="breakdown-amt debit">−${this.#fmt(total)}</span>
-                    </li>
-                `).join('')}
-            </ul>
-        `;
+        // Delegated on the persistent list area so it survives row patches; when
+        // drafting, tapping a row opens the shared picker.
+        this.shadowRoot.querySelector('.list-area')?.addEventListener('click', e => {
+            if (!draftStore.mode) return;
+            const li = e.target.closest('.row');
+            if (!li) return;
+            const t = this.#data.find(x => draftStore.key(x) === li.dataset.key);
+            if (t) document.querySelector('draft-sheet')?.openPicker(t, this.#categories);
+        });
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -296,6 +352,36 @@ const STYLES = `
         align-self: flex-end;
     }
 
+    /* ── Filter toggle ── */
+    .list-controls {
+        display: flex;
+        justify-content: flex-end;
+        padding: 0.5rem 0 0.75rem;
+    }
+
+    .filter-toggle {
+        display: inline-flex;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        background: var(--surface);
+    }
+
+    .filter-btn {
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.05em;
+        padding: 0.375rem 0.75rem;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s;
+    }
+    .filter-btn + .filter-btn { border-left: 1px solid var(--border); }
+    .filter-btn.active { background: var(--accent); color: #FFFCF7; }
+
     /* ── Transaction list ── */
     .list {
         list-style: none;
@@ -365,39 +451,6 @@ const STYLES = `
     .debit  { color: var(--expense); }
     .transfer { color: var(--accent); }
 
-    /* ── Category breakdown ── */
-    .breakdown-label {
-        font-family: var(--mono);
-        font-size: 0.5625rem;
-        letter-spacing: 0.09em;
-        text-transform: uppercase;
-        color: var(--muted);
-        padding: 0.875rem 0 0.5rem;
-    }
-
-    .breakdown {
-        list-style: none;
-        margin-bottom: 0.75rem;
-    }
-
-    .breakdown-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.4rem 0;
-    }
-
-    .breakdown-cat {
-        font-size: 0.8125rem;
-        color: var(--text);
-    }
-
-    .breakdown-amt {
-        font-family: var(--mono);
-        font-size: 0.8125rem;
-        font-weight: 500;
-    }
-
     .meta {
         display: flex;
         gap: 0.4rem;
@@ -413,6 +466,22 @@ const STYLES = `
         border: 1px solid rgba(15, 110, 120, 0.3);
         border-radius: 3px;
         padding: 0.05rem 0.3rem;
+    }
+
+    /* ── Draft: taggable rows + draft pill ── */
+    .row.taggable { cursor: pointer; }
+    .row.taggable:hover { background: rgba(15,110,120,0.05); }
+
+    .draft-pill {
+        font-family: var(--mono);
+        font-size: 0.5rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--accent);
+        border: 1px dashed rgba(15,110,120,0.55);
+        border-radius: 3px;
+        padding: 0.05rem 0.3rem;
+        font-style: italic;
     }
 
     /* ── Mobile: hide balance column on narrow screens ── */

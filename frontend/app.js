@@ -4,6 +4,8 @@
 
 import './components/home-view.js';
 import './components/transaction-list.js';
+import './components/draft-sheet.js';
+import { draftStore } from './draft-store.js';
 
 const DATA_BASE = '/data/';
 
@@ -107,6 +109,13 @@ function isExcluded(category) {
     return rules.categories[category]?.isExpense === false;
 }
 
+/** Every category the user already knows about — offered when drafting rules. */
+function availableCategories() {
+    const set = new Set(Object.keys(rules.categories));
+    for (const r of rules.rules) set.add(r.category);
+    return [...set].sort();
+}
+
 const RESERVED = new Set(['format.json']);
 
 async function discoverFiles() {
@@ -172,15 +181,20 @@ function route() {
             <h2 class="view-heading">${fmtMonthKey(key)}</h2>
             <transaction-list></transaction-list>
         `;
-        viewRoot.querySelector('transaction-list').data = txns;
+        const list = viewRoot.querySelector('transaction-list');
+        list.categories = availableCategories();
+        list.data = txns;
 
     } else {
         backBtn.hidden = true;
         viewRoot.innerHTML = '<home-view></home-view>';
-        viewRoot.querySelector('home-view').byMonth = byMonth;
+        const home = viewRoot.querySelector('home-view');
+        home.categories = availableCategories();
+        home.byMonth = byMonth;
     }
 }
 
+backBtn.addEventListener('click', () => { window.location.hash = ''; });
 window.addEventListener('hashchange', route);
 
 // ── Data loading ─────────────────────────────────────────────────────────────
@@ -226,5 +240,21 @@ async function loadData() {
 }
 
 refreshBtn.addEventListener('click', loadData);
+
+// ── Draft-rules mode (global toggle in the header) ─────────────────────────────
+
+const draftBtn = document.getElementById('draft-btn');
+
+function reflectDraftMode() {
+    const on = draftStore.mode;
+    draftBtn.classList.toggle('active', on);
+    draftBtn.setAttribute('aria-pressed', String(on));
+    draftBtn.textContent = on ? 'Done' : '✎ Draft rules';
+    document.body.classList.toggle('draft-active', on);
+}
+
+draftBtn.addEventListener('click', () => draftStore.setMode(!draftStore.mode));
+draftStore.subscribe(reflectDraftMode);
+reflectDraftMode();
 
 loadData();
