@@ -1,9 +1,20 @@
 # bankerchief: Simple income and expense visualisation
 
-Bankerchief is a simple web app to track your income and expenditure. It's designed to be run on a computer in your home network and accessed via a VPN like Tailscale. You can optionally also install it as a PWA on your mobile device.
+Bankerchief is a simple web app to track your income and expenditure, with simple charts and spending categorisation.
+
+Bankerchief is designed to be run on a computer in your home network and accessed via a VPN like Tailscale. You can optionally also install it as a PWA on your mobile device.
+
+## How it works
+
+Bankerchief has no backend and no database. It runs entirely in the browser:
+
+- **Caddy** serves the frontend and your transaction files
+- Caddy's built-in directory listing exposes your transaction files as a browsable JSON index at `/data`
+- The app fetches `/data` to discover accounts, then fetches each account's JSON file to get the transactions
+- All parsing, charting and categorisation happens in the browser
 
 > [!CAUTION]
-> The architecture of this app allows anyone who can reach the app to see your transaction history. Please use it at your own risk. Do not run it in the cloud without setting up proper authentication.
+> The architecture of this app allows anyone who can reach the app can read all of your files. Please use it at your own risk. Do not run it in the cloud without setting up proper authentication.
 
 ## What you need
 
@@ -22,11 +33,25 @@ What you'll need:
 
 ## Getting started
 
-This app expects data files to be in the `transactions` directory:
+Bring up the app with sample data:
+
+```shell
+docker run --rm --name bankerchief -p 3000:3000 \
+  -v "$(pwd)/frontend:/srv" \
+  -v "$(pwd)/sampledata:/transactions" \
+  -v "$(pwd)/Caddyfile:/etc/caddy/Caddyfile" \
+  docker.io/library/caddy:alpine
+```
+
+Access the app at `http://localhost:3000`.
+
+### Add your transactions
+
+This app expects a folder of data files to be mounted in the container:
 
 1.  Go to your bank's website or app.
 2.  Export your transactions as a CSV or JSON file.
-3.  Move the file to the `transactions` directory.
+3.  Move the files to the `transactions` directory, one subfolder per bank.
 
 You should have a directory structure like this:
 
@@ -43,9 +68,21 @@ transactions/
         2021-02.json
 ```
 
-Then, bring up the app:
+Then, you can run the app with:
 
 ```shell
+docker run --rm --name bankerchief -p 3000:3000 \
+  -v "$(pwd)/frontend:/srv" \
+  -v "/path/to/your/transactions:/transactions" \
+  -v "$(pwd)/Caddyfile:/etc/caddy/Caddyfile" \
+  docker.io/library/caddy:alpine
+```
+
+Alternatively, use the included Compose file:
+
+```shell
+docker-compose up
+# or:
 podman-compose up
 ```
 
