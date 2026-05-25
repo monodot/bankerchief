@@ -1,7 +1,8 @@
 /**
  * <home-view> Web Component
  *
- * Displays an income-vs-expense bar chart for the most recent 3 months,
+ * Displays an income-vs-expense bar chart and an expenses-by-category donut
+ * over a selectable window (last 3 or 6 months), toggled by a button group,
  * followed by a clickable list of all available months.
  *
  * Usage:
@@ -11,6 +12,7 @@ class HomeView extends HTMLElement {
     #chart   = null;
     #donut   = null;
     #byMonth = {};
+    #range   = 6;   // months shown in both charts; toggled by the 3M/6M group
 
     constructor() {
         super();
@@ -65,11 +67,11 @@ class HomeView extends HTMLElement {
         if (this.#donut) { this.#donut.destroy(); this.#donut = null; }
 
         const sortedKeys = Object.keys(this.#byMonth).sort();       // oldest → newest
-        const last3      = sortedKeys.slice(-3);
-        const last6      = sortedKeys.slice(-6);
+        const range      = this.#range;
+        const windowKeys = sortedKeys.slice(-range);
         const allDesc    = [...sortedKeys].reverse();                // newest first for list
 
-        const catData    = this.#expensesByCategory(last6);
+        const catData    = this.#expensesByCategory(windowKeys);
         const catTotal   = catData.reduce((sum, [, v]) => sum + v, 0);
 
         const summaries  = Object.fromEntries(
@@ -97,9 +99,15 @@ class HomeView extends HTMLElement {
         this.shadowRoot.innerHTML = `
             <style>${STYLES}</style>
             <div class="root">
-                <h2 class="heading">Overview</h2>
+                <div class="header-row">
+                    <h2 class="heading">Overview</h2>
+                    <div class="range-toggle" role="group" aria-label="Time range">
+                        <button class="range-btn ${range === 3 ? 'active' : ''}" data-range="3">3M</button>
+                        <button class="range-btn ${range === 6 ? 'active' : ''}" data-range="6">6M</button>
+                    </div>
+                </div>
 
-                ${last3.length > 0 ? `
+                ${windowKeys.length > 0 ? `
                     <div class="chart-card">
                         <div class="chart-wrap">
                             <canvas id="chart"></canvas>
@@ -108,7 +116,7 @@ class HomeView extends HTMLElement {
                 ` : ''}
 
                 ${catData.length > 0 ? `
-                    <p class="chart-title">Expenses by category · last 6 months</p>
+                    <p class="chart-title">Expenses by category · last ${range} months</p>
                     <div class="chart-card">
                         <div class="chart-wrap donut-wrap">
                             <canvas id="donut"></canvas>
@@ -123,12 +131,19 @@ class HomeView extends HTMLElement {
             </div>
         `;
 
-        if (last3.length > 0) {
-            this.#initChart(last3, summaries);
+        if (windowKeys.length > 0) {
+            this.#initChart(windowKeys, summaries);
         }
         if (catData.length > 0) {
             this.#initDonut(catData, catTotal);
         }
+
+        this.shadowRoot.querySelectorAll('.range-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const n = +btn.dataset.range;
+                if (n !== this.#range) { this.#range = n; this.#render(); }
+            });
+        });
     }
 
     // ── Chart.js ─────────────────────────────────────────────────────────────
@@ -305,14 +320,44 @@ const PALETTE = [
 const STYLES = `
     :host { display: block; }
 
+    .header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
     .heading {
         font-family: Georgia, 'Times New Roman', serif;
         font-style: italic;
         font-weight: 300;
         font-size: 1.5rem;
         color: var(--text);
-        margin-bottom: 1.25rem;
     }
+
+    .range-toggle {
+        display: inline-flex;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        background: var(--surface);
+    }
+
+    .range-btn {
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.6875rem;
+        letter-spacing: 0.05em;
+        padding: 0.375rem 0.75rem;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s;
+    }
+    .range-btn + .range-btn { border-left: 1px solid var(--border); }
+    .range-btn.active { background: var(--accent); color: #FFFCF7; }
 
     /* Chart */
     .chart-card {
