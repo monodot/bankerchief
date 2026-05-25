@@ -96,6 +96,7 @@ async function loadRules() {
 function classify(txn) {
     const desc = normalise(txn.description);
     for (const r of rules.rules) {
+        if (r.date && r.date !== txn.date) continue;   // date-scoped rule, wrong day
         if (desc.includes(normalise(r.match))) return r.category;
     }
     return 'Uncategorised';
