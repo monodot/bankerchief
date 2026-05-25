@@ -1,0 +1,33 @@
+{
+  "categories": {
+    "Salary": { },
+    "Credit card": { "isExpense": false },
+    "Investments": { "isExpense": false }
+  },
+  "rules": [
+    { "match": "ZENITH CORP INC",      "category": "Salary" },
+    { "match": "CRYSTAL UTILITIES",    "category": "Utilities" },
+    { "match": "INTERNET PROVIDER",    "category": "Utilities" },
+    { "match": "HARMONIC HEALTH",      "category": "Healthcare" },
+    { "match": "PINNACLE INSURANCE",   "category": "Insurance" },
+    { "match": "MERIDIAN COFFEE",      "category": "Dining" },
+    { "match": "AURORA RESTAURANT",    "category": "Dining" },
+    { "match": "QUANTUM RETAIL",       "category": "Shopping" },
+    { "match": "STELLAR BOOKSTORE",    "category": "Shopping" },
+    { "match": "NOVA FITNESS",         "category": "Entertainment" },
+    { "match": "VERTEX GAMING",        "category": "Entertainment" },
+    { "match": "CATALYST EDUCATION",   "category": "Education" },
+    { "match": "LUMINA DENTAL",        "category": "Healthcare" },
+    { "match": "ZENITH LOGISTICS",     "category": "Shipping" },
+    { "match": "HORIZON LOGISTICS",    "category": "Shipping" },
+    { "match": "TITAN DELIVERY",       "category": "Shipping" },
+    { "match": "VELOCITY TRANSPORT",   "category": "Transport" },
+    { "match": "APEX AUTOMOTIVE",      "category": "Transport" },
+    { "match": "SERENITY SPA",         "category": "Entertainment" },
+    { "match": "VIGOR SPORTS GEAR",    "category": "Shopping" },
+    { "match": "ECHO STREAMING",       "category": "Entertainment" },
+    { "match": "INFINITE SOFTWARE",    "category": "Software" },
+    { "match": "AZURE TECH",           "category": "Software" },
+    { "match": "OBSIDIAN SECURITY",    "category": "Software" }
+  ]
+}

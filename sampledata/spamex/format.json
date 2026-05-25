@@ -1,0 +1,6 @@
+{
+  "format": "csv",
+  "dateFormat": "DD/MM/YYYY",
+  "columns": { "date": "Date", "description": "Description", "amount": "Amount" },
+  "flipSign": true
+}
