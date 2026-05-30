@@ -4,10 +4,9 @@
 
 ---
 
-Bankerchief creates simple reports from your bank's export data, to track your income and spending. There's no import step, no bank syncing, and no database. Drop CSV or JSON files into a folder, reload the page, and get charts and categorised spending reports.
+Bankerchief is a simple, beautiful UI to track your income and spending, using the data files provided by your bank. There's no import step, no bank syncing, and no database. Simply drop CSV or JSON files into a folder, reload the page, and see charts and categorised spending reports.
 
-Designed to run on a home server and accessed via a VPN like Tailscale. Can
-also be installed as a PWA on mobile.
+It's designed to run on a home server and be accessed via a VPN like Tailscale. Bankerchief can also be installed as a Progressive Web App (PWA) on mobile so it appears on your home screen.
 
 <img src="./screenshot.webp" width="220" height="477"/>
 
@@ -43,7 +42,9 @@ What you'll need:
 
 ## Getting started
 
-Bring up the app with sample data:
+### Quickstart with sample data (so you can see what it looks like)
+
+Bring up the app with the [included sample data](./sampledata):
 
 ```shell
 docker run --rm --name bankerchief -p 3000:3000 \
@@ -53,9 +54,28 @@ docker run --rm --name bankerchief -p 3000:3000 \
   docker.io/library/caddy:alpine
 ```
 
-Access the app at `http://localhost:3000`.
+Then access the app at `http://localhost:3000`.
 
-### Add your transactions
+### Running on startup
+
+The best way to run Bankerchief is to have it start automatically when your computer boots.
+
+I prefer Podman, so:
+
+```shell
+brew install --cask podman-desktop
+```
+
+Then ensure Podman Desktop starts on login, and check the box "Autostart Podman engine when launching Podman Desktop".
+
+Then run:
+
+```shell
+cd bankerchief
+podman-compose up -d
+```
+
+## Adding your data
 
 This app expects a folder of data files to be mounted in the container:
 
@@ -98,7 +118,7 @@ podman-compose up
 
 ## Setting up parsing rules
 
-Add an optional `transactions/rules.json` file, to tag transactions by category:
+If you want to tag transactions by category, add an optional `transactions/rules.json` file. The format looks like this:
 
 ```json
 {
@@ -114,22 +134,18 @@ Add an optional `transactions/rules.json` file, to tag transactions by category:
 }
 ```
 
-- `match` is a case-insensitive substring of the transaction description
-  (whitespace is collapsed, so `VANGUARD LONDON` matches `VANGUARD     LONDON`).
-- The first matching rule wins; anything unmatched is `Uncategorised`.
-- A category marked `"isExpense": false` is treated as a **transfer**: money
-  moving between your own accounts (investments, savings, a credit-card payment)
-  rather than spending. Transfers count as neither income nor expense and are
-  shown in their own bucket.
+Key to the rules:
+
+- `match` is a case-insensitive substring of the transaction description   (whitespace is collapsed, so `VANGUARD LONDON` matches `VANGUARD     LONDON`).
+- The first matching rule wins; anything unmatched is treated as `Uncategorised`.
+- A category marked `"isExpense": false` is treated as a **transfer**: money moving between your own accounts (investments, savings, a credit-card payment) instead of spending. Transfers count as neither income nor expense, and are shown in their own bucket.
 
 > [!TIP]
 > You should mark credit-card payments as transfers only if you **also** import the card's own statement every month (see above). Otherwise, excluding them would undercount spending.
 
 ## CSV data sources
 
-Files are loaded as JSON by default. To load CSV exports (e.g. credit-card
-statements), drop a `format.json` hint into that account's directory describing
-how to parse them:
+Files are loaded as JSON by default. To load CSV exports (e.g. credit-card statements), drop a `format.json` hint into that account's directory describing how to parse them:
 
 ```
 transactions/
@@ -137,6 +153,8 @@ transactions/
         format.json
         amex-202605.csv
 ```
+
+The format is a JSON object with these keys:
 
 ```json
 {
@@ -147,20 +165,18 @@ transactions/
 }
 ```
 
+The keys are:
+
 - `columns` maps the canonical fields to your CSV's header names.
 - `dateFormat`: use `DD/MM/YYYY` for UK-style dates; otherwise ISO is assumed.
-- `flipSign: true` negates amounts — this is required if a card export lists purchases
-  as positive. Note this also flips bill *payments* to positive, so add a rule
-  (e.g. `PAYMENT RECEIVED` → an `isExpense: false` category) to exclude them.
+- `flipSign: true` negates amounts — this is required if a card export lists purchases as positive. Note this also flips bill *payments* to positive, so add a rule (e.g. `PAYMENT RECEIVED` → an `isExpense: false` category) to exclude them.
 
-The hint applies to every data file in that directory. CSV parsing splits on
-commas and assumes fields contain no embedded commas.
+The hint applies to every data file in that directory. CSV parsing splits on commas and assumes fields contain no embedded commas.
 
 
 ## Installing as a PWA on iOS
 
-You can install this app as a PWA on your iOS device, so you can access it from
-anywhere in your home network or whenever your device is connected to your VPN.
+You can install this app as a PWA on your iOS device, so you can access it from anywhere in your home network or whenever your device is connected to your VPN.
 
 On your mobile device, install **Tailscale** (or configure your own VPN). Then open Safari and go to `http://your-machine-name:3000`.
 
