@@ -1,8 +1,11 @@
 services:
   bankerchief:
-    build: .
+    image: docker.io/library/caddy:alpine
+    container_name: bankerchief
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/srv
-      - ./sampledata:/transactions
+      - ./data:/transactions
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    restart: unless-stopped
