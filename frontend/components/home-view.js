@@ -334,6 +334,12 @@ class HomeView extends HTMLElement {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: (_e, elements) => {
+                    if (elements.length) window.location.hash = `#month/${keys[elements[0].index]}`;
+                },
+                onHover: (e, elements) => {
+                    e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                },
                 plugins: {
                     legend: {
                         position: 'top',
