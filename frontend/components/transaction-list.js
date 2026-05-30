@@ -22,7 +22,9 @@ class TransactionList extends HTMLElement {
     #loading    = false;
     #error      = null;
     #categories = [];
-    #filter     = 'all';   // 'all' | 'uncategorised'
+    #filter     = 'all';   // 'all' | 'outgoings' | 'uncategorised'
+    #sortField  = 'date';  // 'date' | 'amount'
+    #sortDir    = 'desc';  // 'asc'  | 'desc'
     #unsub      = null;
 
     constructor() {
@@ -108,6 +110,7 @@ class TransactionList extends HTMLElement {
             <div class="list-controls">
                 <div class="filter-toggle" role="group" aria-label="Filter transactions">
                     <button class="filter-btn ${this.#filter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+                    <button class="filter-btn ${this.#filter === 'outgoings' ? 'active' : ''}" data-filter="outgoings">Outgoings</button>
                     <button class="filter-btn ${this.#filter === 'uncategorised' ? 'active' : ''}" data-filter="uncategorised">Uncategorised</button>
                 </div>
             </div>
@@ -122,18 +125,50 @@ class TransactionList extends HTMLElement {
         this.#bind();
     }
 
-    /** Fill the list area for the current filter + draft state (keeps the donut intact). */
+    /** Fill the list area for the current filter + sort + draft state (keeps the donut intact). */
     #fillRows() {
         const area = this.shadowRoot.querySelector('.list-area');
         if (!area) return;
 
-        const visible = this.#filter === 'uncategorised'
+        const filtered = this.#filter === 'uncategorised'
             ? this.#data.filter(t => (t.category || 'Uncategorised') === 'Uncategorised')
-            : this.#data;
+            : this.#filter === 'outgoings'
+                ? this.#data.filter(t => t.amount < 0 && !t.excluded)
+                : this.#data;
 
-        area.innerHTML = visible.length
-            ? `<ul class="list">${visible.map(t => this.#row(t)).join('')}</ul>`
-            : `<div class="state">No uncategorised transactions.</div>`;
+        if (!filtered.length) {
+            area.innerHTML = `<div class="state">No transactions.</div>`;
+            return;
+        }
+
+        const dir = this.#sortDir === 'asc' ? 1 : -1;
+        const sorted = [...filtered].sort((a, b) => {
+            if (this.#sortField === 'amount')      return dir * (a.amount - b.amount);
+            if (this.#sortField === 'description') return dir * a.description.localeCompare(b.description);
+            return dir * a.date.localeCompare(b.date);
+        });
+
+        const arrow = field => this.#sortField === field
+            ? `<span class="sort-arrow">${this.#sortDir === 'asc' ? '↑' : '↓'}</span>`
+            : '';
+
+        area.innerHTML = `
+            <div class="list-header">
+                <button class="sort-hd ${this.#sortField === 'date' ? 'active' : ''}" data-sort="date">Date${arrow('date')}</button>
+                <button class="sort-hd ${this.#sortField === 'description' ? 'active' : ''}" data-sort="description">Description${arrow('description')}</button>
+                <button class="sort-hd ${this.#sortField === 'amount' ? 'active' : ''}" data-sort="amount">Amount${arrow('amount')}</button>
+                <span></span>
+            </div>
+            <ul class="list">${sorted.map(t => this.#row(t)).join('')}</ul>`;
+
+        area.querySelectorAll('.sort-hd').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const f = btn.dataset.sort;
+                this.#sortDir = f === this.#sortField && this.#sortDir === 'desc' ? 'asc' : 'desc';
+                this.#sortField = f;
+                this.#fillRows();
+            });
+        });
     }
 
     /** Render one transaction row. */
@@ -382,15 +417,51 @@ const STYLES = `
     .filter-btn + .filter-btn { border-left: 1px solid var(--border); }
     .filter-btn.active { background: var(--accent); color: #FFFCF7; }
 
+    /* ── Sort header ── */
+    .list-header {
+        display: grid;
+        grid-template-columns: 3.75rem 1fr 6rem 5.5rem;
+        column-gap: 0.75rem;
+        padding: 0.25rem 0 0.375rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 0.125rem;
+    }
+
+    .sort-hd {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 0.5625rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: left;
+        transition: color 0.1s;
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+    }
+    .sort-hd:hover { color: var(--text); }
+    .sort-hd.active { color: var(--accent); }
+    .sort-hd:nth-child(3) { text-align: right; justify-content: flex-end; }
+
+    .sort-arrow {
+        font-size: 0.625rem;
+        line-height: 1;
+    }
+
     /* ── Transaction list ── */
     .list {
         list-style: none;
+        padding: 0;
     }
 
     .row {
         display: grid;
         /* date | description | amount | balance */
-        grid-template-columns: 3.75rem 1fr auto auto;
+        grid-template-columns: 3.75rem 1fr 6rem 5.5rem;
         grid-template-rows: auto;
         column-gap: 0.75rem;
         align-items: center;
@@ -486,10 +557,12 @@ const STYLES = `
 
     /* ── Mobile: hide balance column on narrow screens ── */
     @media (max-width: 420px) {
+        .list-header,
         .row {
-            grid-template-columns: 3.25rem 1fr auto;
+            grid-template-columns: 3.25rem 1fr 6rem;
         }
         .balance { display: none; }
+        .list-header span:last-child { display: none; }
     }
 `;
 
