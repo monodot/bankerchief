@@ -238,6 +238,11 @@ class HomeView extends HTMLElement {
                     <div class="uncat-card">${this.#uncatRowsHtml()}</div>
                 ` : ''}
 
+                <a class="nav-row" href="#merchants">
+                    <span class="nav-label">By merchant</span>
+                    <span class="arrow">›</span>
+                </a>
+
                 ${allDesc.length > 0 ? `
                     <p class="section-label">All months</p>
                     <div class="month-list">${monthRows}</div>
@@ -623,6 +628,28 @@ const STYLES = `
         letter-spacing: 0.05em;
         text-transform: uppercase;
         color: var(--muted);
+    }
+
+    /* By-merchant nav row */
+    .nav-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.875rem 1rem;
+        margin-bottom: 1.5rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        text-decoration: none;
+        color: inherit;
+        transition: opacity 0.1s;
+    }
+    .nav-row:hover  { opacity: 0.75; }
+    .nav-row:active { opacity: 0.5; }
+
+    .nav-label {
+        font-size: 0.9375rem;
+        color: var(--text);
     }
 
     /* Month list */

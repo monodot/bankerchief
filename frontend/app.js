@@ -5,6 +5,7 @@
 import './components/home-view.js';
 import './components/transaction-list.js';
 import './components/draft-sheet.js';
+import './components/merchant-list.js';
 import { draftStore } from './draft-store.js';
 
 const DATA_BASE = './data/';
@@ -190,6 +191,11 @@ function route() {
         const list = viewRoot.querySelector('transaction-list');
         list.categories = availableCategories();
         list.data = txns;
+
+    } else if (hash === '#merchants') {
+        backBtn.hidden = false;
+        viewRoot.innerHTML = '<merchant-list></merchant-list>';
+        viewRoot.querySelector('merchant-list').byMonth = byMonth;
 
     } else {
         backBtn.hidden = true;
